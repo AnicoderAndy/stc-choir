@@ -1,0 +1,46 @@
+# ========================
+# Keil / C51
+# ========================
+firmware/Listings/
+firmware/Objects/
+*.uvopt
+*.uvgui.*
+*.bak
+*.dep
+*.lst
+*.m51
+*.lnp
+*.obj
+*.__i
+*.map
+*.hex
+*.htm
+
+# ========================
+# VSCode
+# ========================
+firmware/.vscode/*
+host/.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# ========================
+# Python
+# ========================
+host/.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ========================
+# General
+# ========================
+.DS_Store
+Thumbs.db
+*.log
+
+# ========================
+# Test utils
+# ========================
+host/music/*
