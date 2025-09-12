@@ -17,13 +17,23 @@
 #define int32 long
 
 // Define the bit-addressable variables
-sbit beep = P3 ^ 4;   // Buzzer
-sbit key1 = P3 ^ 2;   // Key 1
-sbit key2 = P3 ^ 3;   // Key 2
-sbit ledSel = P2 ^ 3; // LED selection
+sbit beep = P3 ^ 4;    // Buzzer
+sbit key1 = P3 ^ 2;    // Key 1
+sbit key2 = P3 ^ 3;    // Key 2
+sbit ledSel = P2 ^ 3;  // LED selection
+sbit m485TRn = P3 ^ 7; // MAX485 Transmit/Receive control
+
+// UART2 相关位定义 - 使用位操作而不是sbit，因为这些寄存器不是位可寻址的
+#define ES2_BIT 0x01   // IE2的第0位
+#define PS2_BIT 0x01   // IP2的第0位
+#define S2RI_BIT 0x01  // S2CON的第0位
+#define S2TI_BIT 0x02  // S2CON的第1位
+#define S2REN_BIT 0x10 // S2CON的第4位
 // UART related
 extern bit uartBusy;    // UART busy flag
 extern bit dataReady;   // Flag indicating data is ready to be processed
+extern bit sendResponse; // Flag to send response in main loop
+extern uint8 responseData; // Response data to send
 extern uint16 uartDtSz; // Size of data to be received from UART
 extern uint16 uartPos;  // Position in the UART buffer
 extern bit uartDtSzH;   // High byte of data size flag
@@ -34,7 +44,7 @@ extern uint8 xdata note[];
 extern uint16 xdata duration[];
 // Playback related
 extern bit isMusicPlaying; // Flag indicating music is playing
-extern uint16 pos;          // Current position in music playback
+extern uint16 pos;         // Current position in music playback
 
 /// @brief Digital tube decode table.
 extern uint8 code dtDecode[];

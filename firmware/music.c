@@ -57,6 +57,12 @@ PREPARE:
         if (isMusicPlaying) {
             break;
         }
+
+        // Check if we need to send response from interrupt
+        if (sendResponse) {
+            sendData(responseData);
+            sendResponse = 0;
+        }
     }
 
     ledSel = 1;

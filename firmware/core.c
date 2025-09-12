@@ -1,9 +1,11 @@
 #include "core.h"
 
 // UART1 related
-bit uartBusy = 0;       // UART busy flag
+bit uartBusy = 1;       // UART busy flag
 bit dataReady = 0;      // Flag indicating data is ready to be processed
 bit isMusicPlaying = 0; // Flag indicating music is playing
+bit sendResponse = 0;   // Flag to send response in main loop
+uint8 responseData = 0; // Response data to send
 uint8 event = 0;
 uint8 param = 0;
 uint16 uartDtSz = 0;    // Size of data to be received from UART
@@ -48,7 +50,7 @@ void event1(uint8 dt);
 
 void sysInit() {
     // Display init.
-    P0M0 = 0xff; // 设置推挽模式
+    P0M0 = 0xff; // Set push-pull mode
     P0M1 = 0x00;
     P2M0 = 0x08;
     P2M1 = 0x00;
@@ -56,6 +58,8 @@ void sysInit() {
     P3M1 = 0x00;
     ledSel = 1;
     P0 = 0;
+    P_SW2 |= 0x01;
+    m485TRn = 0; // Ready to receive
 }
 
 void beepInit() {
@@ -68,8 +72,7 @@ void beepInit() {
 
 void uartInit() {
     // 115200bps@11.0592MHz
-    SCON = 0x50;  // 8 bits and variable baudrate
-    AUXR |= 0x01; // UART 1 use Timer2 as baudrate generator
+    S2CON = 0x50; // 8 bits and variable baudrate
     AUXR |= 0x04; // Timer clock is 1T mode
     T2L = 0xE8;   // Initial timer value
     T2H = 0xFF;   // Initial timer value
@@ -77,11 +80,11 @@ void uartInit() {
 }
 
 void interruptInit() {
-    ET0 = 1; // Enable Timer 0 interrupt
-    ES = 1;  // Enable UART interrupt
-    EA = 1;  // Enable global interrupts
-    PT0 = 1; // Set Timer 0 interrupt priority to high
-    PS = 1;  // Set UART interrupt priority to high
+    ET0 = 1;        // Enable Timer 0 interrupt
+    IE2 |= ES2_BIT; // Enable UART2 interrupt
+    EA = 1;         // Enable global interrupts
+    PT0 = 1;        // Set Timer 0 interrupt priority to high
+    IP2 |= PS2_BIT; // Set UART2 interrupt priority to high
 }
 
 void delay(uint16 t) {
@@ -106,13 +109,15 @@ void display() {
 }
 
 void sendData(uint8 dt) {
+    m485TRn = 1;
+    S2BUF = dt;
     while (uartBusy);
     uartBusy = 1;
-    SBUF = dt;
+    m485TRn = 0; // Switch to receive mode
 }
 
 void fetchData() {
-    uint8 dt = SBUF;
+    uint8 dt = S2BUF;
     if (!event) {
         event = (dt & 0xf0) >> 4;
         param = (dt & 0x0f);
@@ -124,7 +129,7 @@ void fetchData() {
             uartDtSzL = 0;
             uartPos = 0;
             notePos = 0;
-            uartCheckSum = 0;  // 重置校验和
+            uartCheckSum = 0;
             dataReady = 0;
             break;
         case 2:
@@ -133,7 +138,7 @@ void fetchData() {
             param = 0;
             break;
         case 3:
-            pos = 0;  // 重置音乐播放位置
+            pos = 0; // Reset playback position
             isMusicPlaying = 1;
             event = 0;
             param = 0;
@@ -143,6 +148,11 @@ void fetchData() {
             event = 0;
             param = 0;
             break;
+        case 0xe:
+        case 0xf:
+            // Data is for HOST, ignore it
+            event = 0;
+            param = 0;
         }
     } else {
         if (event == 1) {
@@ -183,13 +193,14 @@ void event1(uint8 dt) {
             uartCheckSum ^= dt;
         } else if (uartPos == uartDtSz) {
             // Check byte
-            RI = 0;
             if (dt == uartCheckSum) {
-                sendData(0xe0);
+                responseData = 0xe0;
+                sendResponse = 1;
                 dataReady = 1;
             } else {
-                sendData(0xf0);
-                dataReady = 0;  // Invalid data
+                responseData = 0xf0;
+                sendResponse = 1;
+                dataReady = 0; // Invalid data
             }
             uartPos++;
         }
@@ -211,15 +222,15 @@ void event1(uint8 dt) {
 
 void t0InterruptHandler() INTERRUPT(1) { beep = ~beep; }
 
-void uartInterruptHandler() INTERRUPT(4) USING(1) {
-    if (RI) {
+void uartInterruptHandler() INTERRUPT(8) USING(1) {
+    if (S2CON & S2RI_BIT) {
         // Data received
         fetchData();
-        RI = 0;
+        S2CON &= ~S2RI_BIT; // Clear S2RI flag
     }
-    if (TI) {
+    if (S2CON & S2TI_BIT) {
         // Data transmitted
-        TI = 0;
         uartBusy = 0;
+        S2CON &= ~S2TI_BIT; // Clear S2TI flag
     }
 }
