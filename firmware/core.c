@@ -133,7 +133,7 @@ void fetchData() {
             dataReady = 0;
             break;
         case 2:
-            // TODO: Toggle node display
+            // Undefined command for now
             event = 0;
             param = 0;
             break;
@@ -148,8 +148,24 @@ void fetchData() {
             event = 0;
             param = 0;
             break;
+        case 5:
+            if (param == nodeid) {
+                pos = 0;
+                isMusicPlaying = 1;
+            }
+            event = 0;
+            param = 0;
+            break;
+        case 6:
+            if (param == nodeid) {
+                isMusicPlaying = 0;
+            }
+            event = 0;
+            param = 0;
+            break;
         case 0xe:
         case 0xf:
+        default:
             // Data is for HOST, ignore it
             event = 0;
             param = 0;

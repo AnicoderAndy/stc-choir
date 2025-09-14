@@ -3,7 +3,7 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-import serial.tools.list_ports
+import serial
 
 import host_serial as hs
 import parse_midi as pm
@@ -27,7 +27,8 @@ class MidiFilePlayer:
         self.byte_list = []
         self.track_assignments = {}  # Track assignment info
         self.available_ports = []  # List of available serial ports
-        self.selected_port = None  # Current selected serial port
+        self.selected_port: str = ""  # Current selected serial port
+        self.opened_ser: serial.Serial | None = None  # Opened serial port object
 
         # Display filename
         tk.Label(root, text="文件:").grid(row=0, column=0, sticky="w", padx=10, pady=5)
@@ -55,7 +56,7 @@ class MidiFilePlayer:
         tk.Button(root, text="播放", command=self.play_music).grid(
             row=5, column=2, padx=10, pady=10, sticky="ew"
         )
-        tk.Button(root, text="退出", command=root.quit).grid(
+        tk.Button(root, text="停止", command=self.stop_music).grid(
             row=5, column=3, padx=10, pady=10, sticky="ew"
         )
 
@@ -86,20 +87,10 @@ class MidiFilePlayer:
 
     def refresh_ports(self):
         """Refresh the list of available serial ports"""
+        if self.opened_ser:
+            self.opened_ser.close()
         try:
-            # Get all available serial ports
-            ports = serial.tools.list_ports.comports()
-            self.available_ports = [port.device for port in ports]
-
-            # Update combobox values
-            port_descriptions = []
-            for port in ports:
-                # Display port name and description
-                if port.description and port.description != "n/a":
-                    port_descriptions.append(f"{port.device} - {port.description}")
-                else:
-                    port_descriptions.append(port.device)
-
+            self.available_ports, port_descriptions = hs.get_serial_ports()
             self.port_combo["values"] = port_descriptions
 
             # Try keeping previous selection if possible
@@ -107,30 +98,40 @@ class MidiFilePlayer:
                 for i, desc in enumerate(port_descriptions):
                     if desc.startswith(self.selected_port):
                         self.port_combo.current(i)
+                        self.opened_ser = hs.open_serial_port(self.selected_port)
                         break
-            elif port_descriptions:
+            elif port_descriptions and self.available_ports:
                 # If no previous selection, select the first available port
                 self.port_combo.current(0)
-                self.selected_port = (
-                    self.available_ports[0] if self.available_ports else None
-                )
+                self.selected_port = self.available_ports[0]
+                self.opened_ser = hs.open_serial_port(self.selected_port)
             else:
                 # No available ports
                 self.port_combo.set("无可用串口")
-                self.selected_port = None
+                self.selected_port = ""
 
         except Exception as e:
             messagebox.showerror("错误", f"刷新串口失败: {e}")
             self.port_combo.set("刷新失败")
             logging.error(f"Error refreshing ports: {e}")
-            self.selected_port = None
+            self.selected_port = ""
 
     def on_port_selected(self, event):
         """Handle serial port selection event"""
         selection = self.port_combo.current()
-        if selection >= 0 and selection < len(self.available_ports):
-            self.selected_port = self.available_ports[selection]
-            logging.debug(f"Serial port selected: {self.selected_port}")
+        try:
+            if self.opened_ser:
+                self.opened_ser.close()
+            if selection >= 0 and selection < len(self.available_ports):
+                self.selected_port = self.available_ports[selection]
+                logging.debug(f"Serial port selected: {self.selected_port}")
+                self.opened_ser = hs.open_serial_port(self.selected_port)
+        except Exception as e:
+            messagebox.showerror("错误", f"打开串口失败: {e}")
+            logging.error(f"Error opening selected port: {e}")
+            self.selected_port = ""
+            self.opened_ser = None
+            self.port_combo.set("打开失败")
 
     def create_track_table(self):
         # Track table label
@@ -274,10 +275,43 @@ class MidiFilePlayer:
                 self.track_tree.item(item, values=values)
             dialog.destroy()
 
+        def on_preview():
+            selected_node = node_var.get()
+            if (
+                self.opened_ser
+                and self.opened_ser.is_open
+                and selected_node != "不分配"
+            ):
+                hs.preview_track(
+                    self.opened_ser, int(selected_node, 16), self.byte_list[track_index]
+                )
+            else:
+                messagebox.showwarning("提示", "请先选择有效的串口和节点！")
+            logging.info(
+                f"Preview requested for track {track_index} on node {selected_node}"
+            )
+
         def on_cancel():
             dialog.destroy()
 
+        def on_stop():
+            selected_node = node_var.get()
+            logging.info(
+                f"Stop requested for track {track_index} on node {selected_node}"
+            )
+            if (
+                self.opened_ser
+                and self.opened_ser.is_open
+                and selected_node != "不分配"
+            ):
+                cmd = 0x60 | (int(selected_node, 16) & 0x0F)
+                hs.send_command(self.opened_ser, bytes([cmd]))
+
         tk.Button(button_frame, text="确定", command=on_ok).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="预览", command=on_preview).pack(
+            side=tk.LEFT, padx=5
+        )
+        tk.Button(button_frame, text="停止", command=on_stop).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="取消", command=on_cancel).pack(
             side=tk.LEFT, padx=5
         )
@@ -306,7 +340,7 @@ class MidiFilePlayer:
     def play_music(self):
         """Send play command to firmware"""
         # Check if serial port is selected
-        if not self.selected_port:
+        if not self.selected_port or not self.opened_ser:
             messagebox.showwarning("提示", "请先选择串口！")
             return
 
@@ -316,7 +350,30 @@ class MidiFilePlayer:
 
     def _send_play_command(self):
         """Worker thread to send play command"""
-        hs.send_command(self.selected_port, bytes([0x30]))  # type: ignore
+        if self.opened_ser and self.opened_ser.is_open:
+            hs.send_command(self.opened_ser, bytes([0x30]))
+        else:
+            messagebox.showwarning("提示", "串口未打开！")
+            logging.warning("Attempted to play music but serial port is not open.")
+
+    def stop_music(self):
+        """Send stop command to firmware"""
+        # Check if serial port is selected
+        if not self.selected_port or not self.opened_ser:
+            messagebox.showwarning("提示", "请先选择串口！")
+            return
+
+        # Send data in a new thread in case
+        stop_thread = threading.Thread(target=self._send_stop_command, daemon=True)
+        stop_thread.start()
+
+    def _send_stop_command(self):
+        """Worker thread to send stop command"""
+        if self.opened_ser and self.opened_ser.is_open:
+            hs.send_command(self.opened_ser, bytes([0x40]))
+        else:
+            messagebox.showwarning("提示", "串口未打开！")
+            logging.warning("Attempted to stop music but serial port is not open.")
 
     def transmit_music(self):
         """Transmit music data to the firmware"""
@@ -347,32 +404,41 @@ class MidiFilePlayer:
 
     def _transmit_worker(self):
         """Worker thread to transmit music data"""
-        # Transmission start
-        success_count = hs.send_music_data(self.selected_port, self.byte_list, self.track_assignments)  # type: ignore
-        # Calculate expected transmissions
-        expected_transmissions = len(self.byte_list) - self._count_unassigned_tracks()
-        unassigned_count = self._count_unassigned_tracks()
+        if self.opened_ser and self.opened_ser.is_open:
+            # Transmission start
+            success_count = hs.send_music_data(
+                self.opened_ser, self.byte_list, self.track_assignments
+            )
+            # Calculate expected transmissions
+            expected_transmissions = (
+                len(self.byte_list) - self._count_unassigned_tracks()
+            )
+            unassigned_count = self._count_unassigned_tracks()
 
-        # Report results
-        if success_count == expected_transmissions:
-            if unassigned_count > 0:
-                message = f"成功传输 {success_count} 个轨道！（跳过 {unassigned_count} 个未分配轨道）"
+            # Report results
+            if success_count == expected_transmissions:
+                if unassigned_count > 0:
+                    message = f"成功传输 {success_count} 个轨道！（跳过 {unassigned_count} 个未分配轨道）"
+                else:
+                    message = f"所有 {success_count} 个轨道传输完成！"
+                self.root.after(
+                    0,
+                    lambda: messagebox.showinfo("成功", message),
+                )
             else:
-                message = f"所有 {success_count} 个轨道传输完成！"
-            self.root.after(
-                0,
-                lambda: messagebox.showinfo("成功", message),
-            )
+                failed_count = expected_transmissions - success_count
+                message = f"传输完成，但有 {failed_count} 个轨道失败"
+                self.root.after(
+                    0,
+                    lambda: messagebox.showwarning("警告", message),
+                )
         else:
-            failed_count = expected_transmissions - success_count
-            message = f"传输完成，但有 {failed_count} 个轨道失败"
-            self.root.after(
-                0,
-                lambda: messagebox.showwarning("警告", message),
-            )
+            messagebox.showwarning("提示", "串口未打开！")
+            logging.warning("Attempted to transmit music but serial port is not open.")
 
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = MidiFilePlayer(root)
+    root.resizable(False, False)
     root.mainloop()
