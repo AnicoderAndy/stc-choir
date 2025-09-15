@@ -1,5 +1,5 @@
 #include "core.h"
-
+#define MAX_NOTES 600
 // UART1 related
 bit uartBusy = 1;       // UART busy flag
 bit dataReady = 0;      // Flag indicating data is ready to be processed
@@ -16,8 +16,8 @@ bit uartDtSzH = 0;      // High byte of data size flag
 bit uartDtSzL = 0;      // Low byte of data size flag
 
 // Music related
-uint8 xdata note[682];
-uint16 xdata duration[682];
+uint8 xdata note[MAX_NOTES];
+uint16 xdata duration[MAX_NOTES];
 
 uint8 code dtDecode[17] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F,
                            0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71, 0x00};
