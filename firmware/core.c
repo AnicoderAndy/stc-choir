@@ -191,8 +191,12 @@ void event1(uint8 dt) {
         uartDtSz |= dt;
         uartDtSzL = 1; // Low byte received
     } else if (nodeid == param) {
-        // Store the received data in note and duration arrays
-        if (uartPos < uartDtSz) {
+        if (uartDtSz / 3 > MAX_NOTES) {
+            // Data size exceeds maximum note capacity
+            // Ignore all data
+            uartPos++;
+        } else if (uartPos < uartDtSz) {
+            // Store the received data in note and duration arrays
             switch (uartPos % 3) {
             case 0:
                 note[notePos] = dt; // Store note
@@ -223,6 +227,11 @@ void event1(uint8 dt) {
         if (uartPos > uartDtSz) {
             event = 0;
             param = 0;
+            if (uartDtSz / 3 > MAX_NOTES) {
+                responseData = 0xf1; // Data size error
+                sendResponse = 1;
+                dataReady = 0;
+            }
         }
     } else {
         // Not for this node, ignore the data

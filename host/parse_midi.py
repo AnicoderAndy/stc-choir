@@ -1,7 +1,11 @@
+import logging
 from dataclasses import dataclass
 from typing import List, Tuple
 
 from mido import MidiFile
+
+# Maximum duration in ms that can be represented in 2 bytes
+DURATION_MAX = (1 << 16) - 1
 
 
 @dataclass
@@ -49,6 +53,11 @@ def parse_midi_to_events(
                 rest_ticks = abs_time - last_note_time
                 rest_ms = int((rest_ticks * tempo) / (ticks_per_beat * 1000))
                 if rest_ms >= config.min_rest_ms:
+                    if rest_ms >= DURATION_MAX:
+                        rest_ms = DURATION_MAX
+                        logging.warning(
+                            f"Rest duration too long, clipped to {DURATION_MAX} ms"
+                        )
                     current_track_events.append(
                         (last_note_time, config.rest_symbol, rest_ms)
                     )
@@ -61,11 +70,16 @@ def parse_midi_to_events(
                     duration_ms = int(
                         (duration_ticks * tempo) / (ticks_per_beat * 1000)
                     )
+                    if duration_ms >= DURATION_MAX:
+                        duration_ms = DURATION_MAX
+                        logging.warning(
+                            f"Note duration too long, clipped to {DURATION_MAX} ms"
+                        )
                     current_track_events.append((start_time, msg.note, duration_ms))
                     del note_stack[msg.note]
                     last_note_time = abs_time
-
-        event_list.append(current_track_events)
+        if len(current_track_events) > 0:
+            event_list.append(current_track_events)
 
     return event_list
 
@@ -100,6 +114,6 @@ def midi_to_binary_list(midi_file: str, config: MidiConfig) -> list[bytes]:
 
 if __name__ == "__main__":
     config = MidiConfig()
-    event_list = parse_midi_to_events("music/hnu_school_song.mid", config)
-    print(len(event_list[0]))
-    print(events_to_binary(event_list[0]).hex())
+    event_list = parse_midi_to_events("music/overworld.mid", config)
+    print(len(event_list[1]))
+    print(events_to_binary(event_list[1]).hex())

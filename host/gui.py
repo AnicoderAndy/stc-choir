@@ -282,9 +282,15 @@ class MidiFilePlayer:
                 and self.opened_ser.is_open
                 and selected_node != "不分配"
             ):
-                hs.preview_track(
-                    self.opened_ser, int(selected_node, 16), self.byte_list[track_index]
-                )
+                try:
+                    hs.preview_track(
+                        self.opened_ser,
+                        int(selected_node, 16),
+                        self.byte_list[track_index],
+                    )
+                except Exception as e:
+                    messagebox.showerror("错误", f"预览失败: {e}")
+                    logging.error(f"Error during preview: {e}")
             else:
                 messagebox.showwarning("提示", "请先选择有效的串口和节点！")
             logging.info(

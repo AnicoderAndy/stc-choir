@@ -163,6 +163,9 @@ def send_track_data(ser: serial.Serial, node_id: int, track_data: bytes) -> bool
             elif response_byte == 0xF0:  # Fail
                 logging.warning(f"Firmware reported failure for node {node_id}")
                 return False
+            elif response_byte == 0xF1:  # Size error
+                logging.warning(f"Size error reported by node {node_id}")
+                return False
             else:
                 logging.warning(
                     f"Unknown response from node {node_id}: {hex(response_byte)}"
