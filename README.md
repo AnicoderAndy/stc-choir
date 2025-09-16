@@ -1,15 +1,4 @@
-<div align="center">
-
-$$
-\begin{array}{c}
-\mathbf{\Huge STC} \\
-\mathbf{\huge CHOIR} \\
-\end{array}
-$$
-
-</div>
-
-<h4 align="center">基于 MIDI 格式的电子音乐合奏系统</h4>
+![Header](assets/github-header-banner.png)
 
 ## 项目简介
 STC-Choir 是一个基于 STC15F2K60S2 单片机的多机合奏音乐播放系统。该系统能够将 MIDI 音乐文件解析为单片机可播放的格式，通过 RS485 总线实现多台单片机的同步音乐播放，从而实现丰富的多声部电子音乐效果。
@@ -64,9 +53,9 @@ graph LR
     
     A <-->|串口转RS485| B
     
-    style A fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    style B fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    style C fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style A fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000000
+    style B fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000000
+    style C fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000000
 ```
 
 ## 构建与使用
