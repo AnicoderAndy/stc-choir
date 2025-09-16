@@ -46,8 +46,9 @@ extern uint8 nodeid;       // Node ID for data transmission
 extern uint8 xdata note[];
 extern uint16 xdata duration[];
 // Playback related
-extern bit isMusicPlaying; // Flag indicating music is playing
-extern uint16 pos;         // Current position in music playback
+extern bit isMusicPlaying;   // Flag indicating music is playing
+extern bit isWaitingForSync; // Flag for waiting for sync signal
+extern uint16 pos;           // Current position in music playback
 
 /// @brief Digital tube decode table.
 extern uint8 code dtDecode[];

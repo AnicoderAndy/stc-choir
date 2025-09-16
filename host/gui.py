@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -25,10 +26,12 @@ class MidiFilePlayer:
         self.file_name = "未加载"
         self.is_playing = False
         self.byte_list = []
+        self.unsynced_list = []  # List of unsynchronized tracks
         self.track_assignments = {}  # Track assignment info
         self.available_ports = []  # List of available serial ports
         self.selected_port: str = ""  # Current selected serial port
         self.opened_ser: serial.Serial | None = None  # Opened serial port object
+        self.playback_thread: threading.Thread | None = None  # Playback thread
 
         # Display filename
         tk.Label(root, text="文件:").grid(row=0, column=0, sticky="w", padx=10, pady=5)
@@ -286,7 +289,7 @@ class MidiFilePlayer:
                     hs.preview_track(
                         self.opened_ser,
                         int(selected_node, 16),
-                        self.byte_list[track_index],
+                        self.unsynced_list[track_index],
                     )
                 except Exception as e:
                     messagebox.showerror("错误", f"预览失败: {e}")
@@ -333,6 +336,9 @@ class MidiFilePlayer:
             self.status_label.config(text="停止")
             try:
                 self.byte_list = pm.midi_to_binary_list(path, pm.MidiConfig())
+                self.unsynced_list = pm.midi_to_binary_list(
+                    path, pm.MidiConfig(enable_sync=False)
+                )
                 # Automatically update track table after file loaded
                 self.update_track_table()
             except Exception as e:
@@ -351,16 +357,39 @@ class MidiFilePlayer:
             return
 
         # Send data in a new thread in case
-        play_thread = threading.Thread(target=self._send_play_command, daemon=True)
-        play_thread.start()
+        self.playback_thread = threading.Thread(
+            target=self._playback_controller, daemon=True
+        )
+        self.playback_thread.start()
 
-    def _send_play_command(self):
+    def _playback_controller(self):
         """Worker thread to send play command"""
         if self.opened_ser and self.opened_ser.is_open:
             hs.send_command(self.opened_ser, bytes([0x30]))
         else:
             messagebox.showwarning("提示", "串口未打开！")
             logging.warning("Attempted to play music but serial port is not open.")
+            return
+
+        self.opened_ser.timeout = 0.1
+        # Update UI status
+        self.is_playing = True
+        self.root.after(0, lambda: self.status_label.config(text="播放中"))
+
+        while self.opened_ser:
+            dt = self.opened_ser.read(1)
+            if len(dt) == 1:
+                if dt == b"\x70":
+                    time.sleep(0.05)
+                    hs.send_command(self.opened_ser, bytes([0x80]))
+                elif dt == b"\x20":
+                    break
+            if not self.is_playing:
+                break
+
+        self.opened_ser.timeout = 2.0
+        self.root.after(0, lambda: self.status_label.config(text="停止"))
+        logging.debug("Playback controller thread exiting")
 
     def stop_music(self):
         """Send stop command to firmware"""
@@ -368,10 +397,12 @@ class MidiFilePlayer:
         if not self.selected_port or not self.opened_ser:
             messagebox.showwarning("提示", "请先选择串口！")
             return
-
+        self.opened_ser.timeout = 2.0
         # Send data in a new thread in case
         stop_thread = threading.Thread(target=self._send_stop_command, daemon=True)
         stop_thread.start()
+        self.is_playing = False
+        self.root.after(0, lambda: self.status_label.config(text="停止"))
 
     def _send_stop_command(self):
         """Worker thread to send stop command"""

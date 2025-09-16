@@ -115,18 +115,20 @@ void fetchData() {
             dataReady = 0;
             break;
         case 2:
-            // Undefined command for now
+            // For host, ignore it
             event = 0;
             param = 0;
             break;
         case 3:
             pos = 0; // Reset playback position
             isMusicPlaying = 1;
+            isWaitingForSync = 0;
             event = 0;
             param = 0;
             break;
         case 4:
             isMusicPlaying = 0;
+            isWaitingForSync = 0;
             event = 0;
             param = 0;
             break;
@@ -134,6 +136,7 @@ void fetchData() {
             if (param == nodeid) {
                 pos = 0;
                 isMusicPlaying = 1;
+                isWaitingForSync = 0;
             }
             event = 0;
             param = 0;
@@ -141,10 +144,21 @@ void fetchData() {
         case 6:
             if (param == nodeid) {
                 isMusicPlaying = 0;
+                isWaitingForSync = 0;
             }
             event = 0;
             param = 0;
             break;
+        case 7:
+            // For host, ignore it
+            event = 0;
+            param = 0;
+            break;
+        case 8:
+            // Sync signal received
+            isWaitingForSync = 0;
+            event = 0;
+            param = 0;
         case 0xe:
         case 0xf:
         default:

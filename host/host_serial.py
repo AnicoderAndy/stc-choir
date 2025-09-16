@@ -28,7 +28,7 @@ def get_serial_ports() -> tuple[list[str], list[str]]:
     return (available_ports, port_descriptions)
 
 
-def open_serial_port(port: str) -> serial.Serial:
+def open_serial_port(port: str, *, timeout: None | float = 2.0) -> serial.Serial:
     """Open the specified serial port with predefined settings.
 
     Args:
@@ -43,7 +43,7 @@ def open_serial_port(port: str) -> serial.Serial:
         bytesize=serial.EIGHTBITS,
         parity=serial.PARITY_NONE,
         stopbits=serial.STOPBITS_ONE,
-        timeout=2.0,
+        timeout=timeout,
     )
     logging.debug(f"Port {port} opened successfully.")
     return ser
@@ -138,6 +138,7 @@ def send_track_data(ser: serial.Serial, node_id: int, track_data: bytes) -> bool
     try:
         # track_data already includes header, size, data, checksum
         # only need to modify the header byte
+        ser.read_all()  # Clear input buffer
         if len(track_data) == 0:
             logging.warning(f"Track data for node {node_id} is empty. Skipping.")
             return False

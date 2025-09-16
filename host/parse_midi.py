@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import List, Tuple
 
+import mido
 from mido import MidiFile
 
 # Maximum duration in ms that can be represented in 2 bytes
@@ -12,7 +13,9 @@ DURATION_MAX = (1 << 16) - 1
 class MidiConfig:
     """Configuration class for MIDI parsing"""
 
+    enable_sync: bool = True
     rest_symbol: int = 255
+    marker_symbol: int = 253
     default_tempo: int = 500000  # μs per beat
     min_rest_ms: int = 5  # rest under this will be ignored
 
@@ -36,16 +39,22 @@ def parse_midi_to_events(
 
     note_stack = {}
     event_list = []
+    marker_list = []
 
     # Extract events from each track
     for track in mid.tracks:
         abs_time = 0  # Current time in absolute ticks
         last_note_time = 0  # Last time a note was released
-        current_track_events = []  # Store events for the current track
+        # Event for the current track: (start_time, note/rest_symbol, duration_ms)
+        current_track_events: list[tuple[int, int, int]] = []
+        marker_time = None
 
         for msg in track:
             abs_time += msg.time
-
+            if marker_time and abs_time > marker_time:
+                if config.enable_sync:
+                    marker_list.append(marker_time)
+                marker_time = None
             if msg.type == "set_tempo":
                 tempo = msg.tempo
             elif msg.type == "note_on" and msg.velocity > 0:
@@ -78,9 +87,16 @@ def parse_midi_to_events(
                     current_track_events.append((start_time, msg.note, duration_ms))
                     del note_stack[msg.note]
                     last_note_time = abs_time
+            elif msg.type == "marker":
+                marker_time = abs_time
+
         if len(current_track_events) > 0:
             event_list.append(current_track_events)
 
+    for track in event_list:
+        for marker_time in marker_list:
+            track.append((marker_time, config.marker_symbol, 0))
+        track.sort(key=lambda event: (event[0], event[1] != config.marker_symbol))
     return event_list
 
 
@@ -114,6 +130,6 @@ def midi_to_binary_list(midi_file: str, config: MidiConfig) -> list[bytes]:
 
 if __name__ == "__main__":
     config = MidiConfig()
-    event_list = parse_midi_to_events("music/overworld.mid", config)
-    print(len(event_list[1]))
-    print(events_to_binary(event_list[1]).hex())
+    event_list = parse_midi_to_events("music/test.mid", config)
+    print(len(event_list[0]))
+    print(events_to_binary(event_list[0]).hex())

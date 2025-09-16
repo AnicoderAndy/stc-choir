@@ -12,6 +12,7 @@ void main() {
     }
 
 PREPARE:
+    isWaitingForSync = 0;
     while (1) {
         // Display node ID on digital tube
         bit is_nodeid_changed = 0;
@@ -57,8 +58,12 @@ PREPARE:
     }
 
     ledSel = 1;
-    while (isMusicPlaying) {
+
+MUSIC_PLAYBACK:
+    while (isMusicPlaying && !isWaitingForSync) {
         play_music_note();
     }
+    if (isWaitingForSync)
+        goto MUSIC_PLAYBACK;
     goto PREPARE;
 }
