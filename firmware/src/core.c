@@ -1,4 +1,5 @@
 #include "core.h"
+#include "nvm.h"
 #define MAX_NOTES 600
 // UART1 related
 bit uartBusy = 1;       // UART busy flag
@@ -42,9 +43,6 @@ uint8 code tl0_table[128] = {
     179, 183, 187, 191, 195, 198, 201, 205, 207, 210, 213, 215, 218, 220,
 };
 
-uint8 dtData[8] = {10, 10, 10, 10, 10, 10, 10, 10};
-uint8 ledData = 0;
-
 // Function prototypes
 void event1(uint8 dt);
 
@@ -60,6 +58,11 @@ void sysInit() {
     P0 = 0;
     P_SW2 |= 0x01;
     m485TRn = 0; // Ready to receive
+
+    beepInit();
+    uartInit();
+    interruptInit();
+    IIC_init();
 }
 
 void beepInit() {
@@ -85,27 +88,6 @@ void interruptInit() {
     EA = 1;         // Enable global interrupts
     PT0 = 1;        // Set Timer 0 interrupt priority to high
     IP2 |= PS2_BIT; // Set UART2 interrupt priority to high
-}
-
-void delay(uint16 t) {
-    unsigned int j;
-    for (; t > 0; t--)
-        for (j = 800; j > 0; j--);
-}
-
-void display() {
-    uint8 i;
-    // Digital tube
-    ledSel = 0;
-    for (i = 0; i < 8; i++) {
-        P0 = 0;
-        P2 = i;
-        P0 = dtDecode[dtData[i]];
-        delay(1);
-    }
-    // LED
-    ledSel = 1;
-    P0 = ledData;
 }
 
 void sendData(uint8 dt) {

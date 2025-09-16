@@ -1,10 +1,5 @@
 #include "nvm.h"
-#include "types.h"
-
-void delay_4us() {
-    ;
-    ;
-}
+#include "delay.h"
 
 void IIC_init() {
     SCL = 1;

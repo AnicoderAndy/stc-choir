@@ -324,7 +324,7 @@
               <MiscControls></MiscControls>
               <Define></Define>
               <Undefine></Undefine>
-              <IncludePath></IncludePath>
+              <IncludePath>.\inc</IncludePath>
             </VariousControls>
           </C51>
           <Ax51>
@@ -377,24 +377,34 @@
           <GroupName>Source Group 1</GroupName>
           <Files>
             <File>
-              <FileName>STARTUP.A51</FileName>
-              <FileType>2</FileType>
-              <FilePath>.\STARTUP.A51</FilePath>
+              <FileName>core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\src\core.c</FilePath>
             </File>
             <File>
               <FileName>music.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\music.c</FilePath>
+              <FilePath>.\src\music.c</FilePath>
             </File>
             <File>
-              <FileName>STC15F2K60S2.H</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\STC15F2K60S2.H</FilePath>
-            </File>
-            <File>
-              <FileName>core.c</FileName>
+              <FileName>nvm.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\core.c</FilePath>
+              <FilePath>.\src\nvm.c</FilePath>
+            </File>
+            <File>
+              <FileName>STARTUP.A51</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\src\STARTUP.A51</FilePath>
+            </File>
+            <File>
+              <FileName>main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\src\main.c</FilePath>
+            </File>
+            <File>
+              <FileName>delay.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\src\delay.c</FilePath>
             </File>
           </Files>
         </Group>
