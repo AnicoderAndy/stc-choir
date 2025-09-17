@@ -44,3 +44,4 @@ Thumbs.db
 # Test utils
 # ========================
 host/music/*
+BSP-host/*
