@@ -204,14 +204,20 @@ class MidiFilePlayer:
         for i, track_bytes in enumerate(self.byte_list):
             track_num = hex(i).upper()[2:]  # Convert to hex (0-F)
             track_size = len(track_bytes)
-            default_node = track_num  # Default assignment is track number
+            
+            # Check if track index exceeds available nodes (0-F, i.e., 0-15)
+            if i > 15:
+                default_node = "不分配"  # Assign to "unassigned" if track index > 15
+            else:
+                default_node = track_num  # Default assignment is track number
 
             # Store default assignment
             self.track_assignments[i] = default_node
 
             # Insert row into treeview
+            display_assignment = default_node if default_node == "不分配" else f"节点 {default_node}"
             item_id = self.track_tree.insert(
-                "", "end", values=(track_num, track_size, f"节点 {default_node}")
+                "", "end", values=(track_num, track_size, display_assignment)
             )
 
     def on_node_assignment_change(self, track_index, selected_value):
@@ -435,11 +441,54 @@ class MidiFilePlayer:
             messagebox.showwarning("提示", "请先选择串口！")
             return
 
+        # Check for node assignment conflicts
+        conflict_info = self._check_node_assignment_conflicts()
+        if conflict_info:
+            conflict_message = "发现节点分配冲突：\n\n"
+            for node, tracks in conflict_info.items():
+                track_names = [f"音轨{hex(t).upper()[2:]}" for t in tracks]
+                conflict_message += f"节点 {node}: {', '.join(track_names)}\n"
+            conflict_message += "\n请重新分配音轨后再传输。"
+            messagebox.showerror("节点分配冲突", conflict_message)
+            return
+
         # Transmit in a new thread to avoid blocking UI
         transmission_thread = threading.Thread(
             target=self._transmit_worker, daemon=True
         )
         transmission_thread.start()
+
+    def _check_node_assignment_conflicts(self):
+        """Check for node assignment conflicts
+        
+        Returns:
+            dict: Dictionary mapping conflicted node IDs to list of track indices,
+                  empty dict if no conflicts
+        """
+        node_assignments = {}  # node_id -> list of track indices
+        
+        for track_index in range(len(self.byte_list)):
+            node_id = self.track_assignments.get(track_index, hex(track_index).upper()[2:])
+            
+            # Skip unassigned tracks
+            if node_id == "不分配":
+                continue
+                
+            # Skip tracks with invalid node assignments (should not happen with proper bounds checking)
+            if node_id not in [hex(i).upper()[2:] for i in range(16)]:
+                continue
+                
+            if node_id not in node_assignments:
+                node_assignments[node_id] = []
+            node_assignments[node_id].append(track_index)
+        
+        # Find conflicts (nodes with multiple tracks assigned)
+        conflicts = {}
+        for node_id, track_list in node_assignments.items():
+            if len(track_list) > 1:
+                conflicts[node_id] = track_list
+                
+        return conflicts
 
     def _count_unassigned_tracks(self):
         """Calculate number of unassigned tracks"""
