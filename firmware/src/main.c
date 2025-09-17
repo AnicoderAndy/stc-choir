@@ -55,6 +55,18 @@ PREPARE:
             sendData(responseData);
             sendResponse = 0;
         }
+
+        // Load from code
+        if (loadFromCode) {
+            uint16 i;
+            for (i = 0; i < MAX_NOTES; i++) {
+                note[i] = builtin_note[loadSongId][nodeid][i];
+                duration[i] = builtin_duration[loadSongId][nodeid][i];
+                if (note[i] == 254) break;
+            }
+            loadFromCode = 0;
+            loadSongId = 0;
+        }
     }
 
     ledSel = 1;

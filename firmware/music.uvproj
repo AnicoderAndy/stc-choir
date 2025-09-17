@@ -406,6 +406,11 @@
               <FileType>1</FileType>
               <FilePath>.\src\delay.c</FilePath>
             </File>
+            <File>
+              <FileName>builtin-music.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\src\builtin-music.c</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>

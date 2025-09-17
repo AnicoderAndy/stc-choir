@@ -34,7 +34,7 @@ class MidiFilePlayer:
         self.playback_thread: threading.Thread | None = None  # Playback thread
         self.enable_sync = True  # Sync flag
         self.baudrate = 115200  # Default baudrate
-        self.sync_waiting_time: float = 0.05  # Default sync waiting time
+        self.sync_waiting_time: float = 0.1  # Default sync waiting time
 
         # Display filename
         tk.Label(root, text="文件:").grid(row=0, column=0, sticky="w", padx=10, pady=5)
@@ -65,8 +65,11 @@ class MidiFilePlayer:
         tk.Button(root, text="停止", command=self.stop_music).grid(
             row=5, column=3, padx=10, pady=10, sticky="ew"
         )
-        tk.Button(root, text="设置", command=self.settings).grid(
-            row=6, column=0, padx=10, pady=10, sticky="ew", columnspan=2
+        tk.Button(root, text="选项设置", command=self.settings).grid(
+            row=6, column=0, padx=10, pady=10, sticky="ew"
+        )
+        tk.Button(root, text="预置音乐", command=self.preset_music).grid(
+            row=6, column=1, padx=10, pady=10, sticky="ew"
         )
         tk.Button(root, text="退出", command=self.root.quit).grid(
             row=6, column=2, padx=10, pady=10, sticky="ew", columnspan=2
@@ -204,7 +207,7 @@ class MidiFilePlayer:
         for i, track_bytes in enumerate(self.byte_list):
             track_num = hex(i).upper()[2:]  # Convert to hex (0-F)
             track_size = len(track_bytes)
-            
+
             # Check if track index exceeds available nodes (0-F, i.e., 0-15)
             if i > 15:
                 default_node = "不分配"  # Assign to "unassigned" if track index > 15
@@ -215,7 +218,9 @@ class MidiFilePlayer:
             self.track_assignments[i] = default_node
 
             # Insert row into treeview
-            display_assignment = default_node if default_node == "不分配" else f"节点 {default_node}"
+            display_assignment = (
+                default_node if default_node == "不分配" else f"节点 {default_node}"
+            )
             item_id = self.track_tree.insert(
                 "", "end", values=(track_num, track_size, display_assignment)
             )
@@ -460,34 +465,36 @@ class MidiFilePlayer:
 
     def _check_node_assignment_conflicts(self):
         """Check for node assignment conflicts
-        
+
         Returns:
             dict: Dictionary mapping conflicted node IDs to list of track indices,
                   empty dict if no conflicts
         """
         node_assignments = {}  # node_id -> list of track indices
-        
+
         for track_index in range(len(self.byte_list)):
-            node_id = self.track_assignments.get(track_index, hex(track_index).upper()[2:])
-            
+            node_id = self.track_assignments.get(
+                track_index, hex(track_index).upper()[2:]
+            )
+
             # Skip unassigned tracks
             if node_id == "不分配":
                 continue
-                
+
             # Skip tracks with invalid node assignments (should not happen with proper bounds checking)
             if node_id not in [hex(i).upper()[2:] for i in range(16)]:
                 continue
-                
+
             if node_id not in node_assignments:
                 node_assignments[node_id] = []
             node_assignments[node_id].append(track_index)
-        
+
         # Find conflicts (nodes with multiple tracks assigned)
         conflicts = {}
         for node_id, track_list in node_assignments.items():
             if len(track_list) > 1:
                 conflicts[node_id] = track_list
-                
+
         return conflicts
 
     def _count_unassigned_tracks(self):
@@ -701,7 +708,7 @@ class MidiFilePlayer:
             """Reset to default values"""
             self.sync_var.set(True)
             self.baudrate_var.set("115200")
-            self.sync_waiting_var.set("0.05")
+            self.sync_waiting_var.set("0.1")
 
         # Create buttons
         tk.Button(button_frame, text="确定", command=on_ok, width=8).pack(
@@ -715,6 +722,110 @@ class MidiFilePlayer:
         tk.Button(button_frame, text="恢复默认", command=on_reset, width=8).pack(
             side=tk.RIGHT
         )
+
+    def preset_music(self):
+        """Open preset music selection dialog"""
+        # Check if serial port is selected
+        if not self.selected_port or not self.opened_ser:
+            messagebox.showwarning("提示", "请先选择串口！")
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("选择预置音乐")
+        dialog.geometry("250x230")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        # Center the dialog
+        dialog.geometry(
+            "+%d+%d" % (self.root.winfo_rootx() + 100, self.root.winfo_rooty() + 100)
+        )
+
+        # Create main frame with padding
+        main_frame = tk.Frame(dialog)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        # Title label
+        tk.Label(main_frame, text="请选择预置音乐:").pack(pady=(0, 15))
+
+        # Radio buttons for preset music selection
+        self.preset_var = tk.IntVar()
+        self.preset_var.set(0)  # Default to preset 0
+
+        preset_options = [
+            (0, "预置音乐 0"),
+            (1, "预置音乐 1"),
+            (2, "预置音乐 2"),
+        ]
+
+        for value, text in preset_options:
+            radio = tk.Radiobutton(
+                main_frame,
+                text=text,
+                variable=self.preset_var,
+                value=value,
+            )
+            radio.pack(anchor="w", pady=2)
+
+        # Button frame
+        button_frame = tk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(20, 0))
+
+        def on_ok():
+            """Send preset music command and close dialog"""
+            selected_preset = self.preset_var.get()
+
+            # Create command byte: 0x90, 0x91, or 0x92
+            command_byte = 0x90 | (selected_preset & 0x0F)
+
+            # Send command in a new thread
+            preset_thread = threading.Thread(
+                target=self._send_preset_command,
+                args=(command_byte, selected_preset),
+                daemon=True,
+            )
+            preset_thread.start()
+
+            dialog.destroy()
+
+        def on_cancel():
+            """Cancel and close dialog"""
+            dialog.destroy()
+
+        # Create buttons
+        tk.Button(button_frame, text="确定", command=on_ok, width=8).pack(
+            side=tk.LEFT, padx=(0, 5)
+        )
+
+        tk.Button(button_frame, text="取消", command=on_cancel, width=8).pack(
+            side=tk.RIGHT
+        )
+
+    def _send_preset_command(self, command_byte, preset_number):
+        """Worker thread to send preset music command"""
+        if self.opened_ser and self.opened_ser.is_open:
+            try:
+                hs.send_command(self.opened_ser, bytes([command_byte]))
+                self.root.after(
+                    0,
+                    lambda: messagebox.showinfo(
+                        "成功", f"已发送预置音乐 {preset_number} 指令"
+                    ),
+                )
+                logging.info(
+                    f"Preset music {preset_number} command sent: 0x{command_byte:02X}"
+                )
+            except Exception as e:
+                self.root.after(
+                    0, lambda: messagebox.showerror("错误", f"发送指令失败: {e}")
+                )
+                logging.error(f"Error sending preset command: {e}")
+        else:
+            self.root.after(0, lambda: messagebox.showwarning("提示", "串口未打开！"))
+            logging.warning(
+                "Attempted to send preset command but serial port is not open."
+            )
 
 
 if __name__ == "__main__":

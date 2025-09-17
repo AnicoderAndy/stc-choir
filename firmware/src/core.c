@@ -1,6 +1,6 @@
 #include "core.h"
 #include "nvm.h"
-#define MAX_NOTES 600
+#include "globals.h"
 // UART1 related
 bit uartBusy = 1;       // UART busy flag
 bit dataReady = 0;      // Flag indicating data is ready to be processed
@@ -15,6 +15,8 @@ uint8 uartCheckSum = 0; // XOR checksum for data integrity
 uint16 notePos = 0;     // Position in the note array
 bit uartDtSzH = 0;      // High byte of data size flag
 bit uartDtSzL = 0;      // Low byte of data size flag
+bit loadFromCode = 0;   // Flag to load music from built-in code
+uint8 loadSongId = 0;   // ID of the song to load from built-in code
 
 // Music related
 uint8 xdata note[MAX_NOTES];
@@ -159,6 +161,15 @@ void fetchData() {
             isWaitingForSync = 0;
             event = 0;
             param = 0;
+        case 9:
+            // Load from code
+            if (param < BUILTIN_MUSIC_NUM) {
+                loadFromCode = 1;
+                loadSongId = param;
+            }
+            event = 0;
+            param = 0;
+            break;
         case 0xe:
         case 0xf:
         default:

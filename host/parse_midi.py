@@ -128,8 +128,92 @@ def midi_to_binary_list(midi_file: str, config: MidiConfig) -> list[bytes]:
     return binary_list
 
 
+def events_to_c_arrays(event_list: List[List[Tuple[int, int, int]]]) -> Tuple[str, str]:
+    """
+    Convert event list to C-style arrays for notes and durations
+
+    Args:
+        event_list: List of tracks, each track contains (start_time, note, duration_ms) tuples
+
+    Returns:
+        Tuple of (notes_array_string, durations_array_string)
+    """
+    notes_lines = []
+    durations_lines = []
+
+    for track_idx, track in enumerate(event_list):
+        # Sort events by start time
+        sorted_events = sorted(
+            track, key=lambda x: (x[0], x[1] != 253)
+        )  # 253 is marker_symbol
+
+        track_notes = []
+        track_durations = []
+
+        for _, note, duration in sorted_events:
+            track_notes.append(str(note))
+            track_durations.append(str(duration))
+
+        # Add end marker (note: 254, duration: 0) at the end of each track
+        track_notes.append("254")
+        track_durations.append("0")
+
+        # Format track data with line wrapping for better readability
+        notes_str = ", ".join(track_notes)
+        durations_str = ", ".join(track_durations)
+
+        # Wrap long lines at 80 characters
+        def wrap_line(line, indent="        "):
+            if len(line) <= 80:
+                return line + ","
+
+            wrapped_lines = []
+            current_line = ""
+
+            for item in line.split(", "):
+                if len(current_line + item + ", ") > 80 and current_line:
+                    wrapped_lines.append(current_line.rstrip(", ") + ",")
+                    current_line = indent + item + ", "
+                else:
+                    current_line += item + ", "
+
+            if current_line:
+                wrapped_lines.append(current_line.rstrip(", ") + ",")
+
+            return "\n".join(wrapped_lines)
+
+        # Format track data
+        notes_wrapped = wrap_line(notes_str, "        ")
+        durations_wrapped = wrap_line(durations_str, "        ")
+
+        notes_line = f"        // Track {track_idx + 1}\n        {{{notes_wrapped}}}"
+        durations_line = (
+            f"        // Track {track_idx + 1}\n        {{{durations_wrapped}}}"
+        )
+
+        notes_lines.append(notes_line)
+        durations_lines.append(durations_line)
+
+    # Join all tracks
+    notes_array = ",\n".join(notes_lines)
+    durations_array = ",\n".join(durations_lines)
+
+    return notes_array, durations_array
+
+
 if __name__ == "__main__":
     config = MidiConfig()
-    event_list = parse_midi_to_events("music/test.mid", config)
-    print(len(event_list[0]))
-    print(events_to_binary(event_list[0]).hex())
+    event_list = parse_midi_to_events("music/overworld.mid", config)
+
+    # Generate C-style arrays
+    notes_array, durations_array = events_to_c_arrays(event_list)
+
+    print("// Notes array (replace content after // SONG 1):")
+    print("{")
+    print(notes_array)
+    print("}")
+    print()
+    print("// Durations array (replace content after // SONG 1):")
+    print("{")
+    print(durations_array)
+    print("}")

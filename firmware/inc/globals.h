@@ -14,6 +14,9 @@
 #define int16 int
 #define uint32 unsigned long
 #define int32 long
+#define MAX_NOTES 600
+#define BUILTIN_MUSIC_NUM 3
+#define BUILTIN_MUSIC_TRACKS 4
 
 // Define the bit-addressable variables
 sbit beep = P3 ^ 4;    // Buzzer
@@ -45,6 +48,8 @@ extern uint8 nodeid;       // Node ID for data transmission
 // Music related
 extern uint8 xdata note[];
 extern uint16 xdata duration[];
+extern bit loadFromCode;
+extern uint8 loadSongId;
 // Playback related
 extern bit isMusicPlaying;   // Flag indicating music is playing
 extern bit isWaitingForSync; // Flag for waiting for sync signal
@@ -56,5 +61,8 @@ extern uint8 code dtDecode[];
 extern uint8 code th0_table[];
 /// @brief MIDI note number to TL0 conversion table.
 extern uint8 code tl0_table[128];
-
+/// @brief builtin music notes
+extern uint8 code builtin_note[BUILTIN_MUSIC_NUM][BUILTIN_MUSIC_TRACKS][MAX_NOTES];
+/// @brief builtin music note durations
+extern uint16 code builtin_duration[BUILTIN_MUSIC_NUM][BUILTIN_MUSIC_TRACKS][MAX_NOTES];
 #endif // GLOBALS_H
