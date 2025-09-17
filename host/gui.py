@@ -32,6 +32,9 @@ class MidiFilePlayer:
         self.selected_port: str = ""  # Current selected serial port
         self.opened_ser: serial.Serial | None = None  # Opened serial port object
         self.playback_thread: threading.Thread | None = None  # Playback thread
+        self.enable_sync = True  # Sync flag
+        self.baudrate = 115200  # Default baudrate
+        self.sync_waiting_time: float = 0.05  # Default sync waiting time
 
         # Display filename
         tk.Label(root, text="文件:").grid(row=0, column=0, sticky="w", padx=10, pady=5)
@@ -61,6 +64,12 @@ class MidiFilePlayer:
         )
         tk.Button(root, text="停止", command=self.stop_music).grid(
             row=5, column=3, padx=10, pady=10, sticky="ew"
+        )
+        tk.Button(root, text="设置", command=self.settings).grid(
+            row=6, column=0, padx=10, pady=10, sticky="ew", columnspan=2
+        )
+        tk.Button(root, text="退出", command=self.root.quit).grid(
+            row=6, column=2, padx=10, pady=10, sticky="ew", columnspan=2
         )
 
     def create_serial_port_selection(self):
@@ -101,13 +110,15 @@ class MidiFilePlayer:
                 for i, desc in enumerate(port_descriptions):
                     if desc.startswith(self.selected_port):
                         self.port_combo.current(i)
-                        self.opened_ser = hs.open_serial_port(self.selected_port)
+                        self.opened_ser = hs.open_serial_port(
+                            self.selected_port, self.baudrate
+                        )
                         break
             elif port_descriptions and self.available_ports:
                 # If no previous selection, select the first available port
                 self.port_combo.current(0)
                 self.selected_port = self.available_ports[0]
-                self.opened_ser = hs.open_serial_port(self.selected_port)
+                self.opened_ser = hs.open_serial_port(self.selected_port, self.baudrate)
             else:
                 # No available ports
                 self.port_combo.set("无可用串口")
@@ -128,7 +139,7 @@ class MidiFilePlayer:
             if selection >= 0 and selection < len(self.available_ports):
                 self.selected_port = self.available_ports[selection]
                 logging.debug(f"Serial port selected: {self.selected_port}")
-                self.opened_ser = hs.open_serial_port(self.selected_port)
+                self.opened_ser = hs.open_serial_port(self.selected_port, self.baudrate)
         except Exception as e:
             messagebox.showerror("错误", f"打开串口失败: {e}")
             logging.error(f"Error opening selected port: {e}")
@@ -380,7 +391,7 @@ class MidiFilePlayer:
             dt = self.opened_ser.read(1)
             if len(dt) == 1:
                 if dt == b"\x70":
-                    time.sleep(0.05)
+                    time.sleep(self.sync_waiting_time)
                     hs.send_command(self.opened_ser, bytes([0x80]))
                 elif dt == b"\x20":
                     break
@@ -443,9 +454,14 @@ class MidiFilePlayer:
         """Worker thread to transmit music data"""
         if self.opened_ser and self.opened_ser.is_open:
             # Transmission start
-            success_count = hs.send_music_data(
-                self.opened_ser, self.byte_list, self.track_assignments
-            )
+            if not self.enable_sync:
+                success_count = hs.send_music_data(
+                    self.opened_ser, self.unsynced_list, self.track_assignments
+                )
+            else:
+                success_count = hs.send_music_data(
+                    self.opened_ser, self.byte_list, self.track_assignments
+                )
             # Calculate expected transmissions
             expected_transmissions = (
                 len(self.byte_list) - self._count_unassigned_tracks()
@@ -472,6 +488,184 @@ class MidiFilePlayer:
         else:
             messagebox.showwarning("提示", "串口未打开！")
             logging.warning("Attempted to transmit music but serial port is not open.")
+
+    def settings(self):
+        """Open settings dialog"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("设置")
+        dialog.geometry("400x425")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        # Center the dialog
+        dialog.geometry(
+            "+%d+%d" % (self.root.winfo_rootx() + 100, self.root.winfo_rooty() + 100)
+        )
+
+        # Create main frame with padding
+        main_frame = tk.Frame(dialog)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        # Sync settings section
+        sync_frame = tk.LabelFrame(main_frame, text="同步设置", padx=10, pady=10)
+        sync_frame.pack(fill=tk.X, pady=(0, 15))
+
+        self.sync_var = tk.BooleanVar()
+        self.sync_var.set(self.enable_sync)
+
+        sync_checkbox = tk.Checkbutton(
+            sync_frame, text="启用音轨同步", variable=self.sync_var
+        )
+        sync_checkbox.pack(anchor="w")
+
+        # Add description label
+        sync_desc = tk.Label(
+            sync_frame,
+            text="若启用，此应用会读取 MIDI 文件中的同步标记，\n并在标记处尝试同步。",
+            fg="gray",
+            justify="left",
+        )
+        sync_desc.pack(anchor="w", pady=(5, 0))
+
+        # Sync waiting time setting
+        sync_time_frame = tk.Frame(sync_frame)
+        sync_time_frame.pack(anchor="w", pady=(10, 0))
+
+        tk.Label(sync_time_frame, text="同步等待时间 (秒):").pack(side=tk.LEFT)
+
+        self.sync_waiting_var = tk.StringVar()
+        self.sync_waiting_var.set(str(self.sync_waiting_time))
+
+        sync_waiting_entry = tk.Entry(
+            sync_time_frame,
+            textvariable=self.sync_waiting_var,
+            width=10,
+            justify="center",
+        )
+        sync_waiting_entry.pack(side=tk.LEFT, padx=(10, 0))
+
+        # Add description for sync waiting time
+        sync_waiting_desc = tk.Label(
+            sync_frame,
+            text="设置每次同步等待的时间间隔，范围: 0.01-1.0 秒",
+            fg="gray",
+            justify="left",
+        )
+        sync_waiting_desc.pack(anchor="w", pady=(5, 0))
+
+        # Baudrate settings section
+        baudrate_frame = tk.LabelFrame(main_frame, text="串口设置", padx=10, pady=10)
+        baudrate_frame.pack(fill=tk.X, pady=(0, 15))
+
+        # Baudrate selection
+        tk.Label(baudrate_frame, text="波特率:").pack(anchor="w")
+
+        self.baudrate_var = tk.StringVar()
+        self.baudrate_var.set(str(self.baudrate))
+
+        baudrate_values = [
+            "9600",
+            "19200",
+            "38400",
+            "57600",
+            "115200",
+            "230400",
+            "460800",
+            "921600",
+        ]
+        baudrate_combo = ttk.Combobox(
+            baudrate_frame,
+            textvariable=self.baudrate_var,
+            values=baudrate_values,
+            state="readonly",
+            width=15,
+        )
+        baudrate_combo.pack(anchor="w", pady=(5, 0))
+
+        # Add description label
+        baudrate_desc = tk.Label(
+            baudrate_frame,
+            text="除非你知道你在做什么，否则不要修改此设置。\n修改波特率后需要重新连接串口。",
+            fg="gray",
+            justify="left",
+        )
+        baudrate_desc.pack(anchor="w", pady=(5, 0))
+
+        # Button frame
+        button_frame = tk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(15, 0))
+
+        def on_ok():
+            """Apply settings and close dialog"""
+            old_baudrate = self.baudrate
+
+            # Validate sync waiting time
+            try:
+                sync_waiting_time = float(self.sync_waiting_var.get())
+                if not (0.01 <= sync_waiting_time <= 1.0):
+                    messagebox.showerror(
+                        "错误", "同步等待时间必须在 0.01 到 1.0 秒之间"
+                    )
+                    return
+            except ValueError:
+                messagebox.showerror("错误", "同步等待时间必须是有效的数字")
+                return
+
+            # Update settings
+            self.enable_sync = self.sync_var.get()
+            self.baudrate = int(self.baudrate_var.get())
+            self.sync_waiting_time = sync_waiting_time
+
+            # If baudrate changed and serial port is open, reconnect
+            if (
+                old_baudrate != self.baudrate
+                and self.opened_ser
+                and self.opened_ser.is_open
+            ):
+                try:
+                    port = self.selected_port
+                    self.opened_ser.close()
+                    time.sleep(0.1)  # Brief delay for port to close
+                    self.opened_ser = hs.open_serial_port(port, self.baudrate)
+                    messagebox.showinfo(
+                        "提示", f"串口已重新连接，波特率: {self.baudrate}"
+                    )
+                    logging.info(
+                        f"Serial port reconnected with new baudrate: {self.baudrate}"
+                    )
+                except Exception as e:
+                    messagebox.showerror("错误", f"重新连接串口失败: {e}")
+                    logging.error(f"Failed to reconnect serial port: {e}")
+                    self.opened_ser = None
+
+            dialog.destroy()
+            logging.info(
+                f"Settings updated - Sync: {self.enable_sync}, Baudrate: {self.baudrate}, Sync waiting time: {self.sync_waiting_time}"
+            )
+
+        def on_cancel():
+            """Cancel settings and close dialog"""
+            dialog.destroy()
+
+        def on_reset():
+            """Reset to default values"""
+            self.sync_var.set(True)
+            self.baudrate_var.set("115200")
+            self.sync_waiting_var.set("0.05")
+
+        # Create buttons
+        tk.Button(button_frame, text="确定", command=on_ok, width=8).pack(
+            side=tk.LEFT, padx=(5, 0)
+        )
+
+        tk.Button(button_frame, text="取消", command=on_cancel, width=8).pack(
+            side=tk.LEFT, padx=(5, 0)
+        )
+
+        tk.Button(button_frame, text="恢复默认", command=on_reset, width=8).pack(
+            side=tk.RIGHT
+        )
 
 
 if __name__ == "__main__":

@@ -28,24 +28,26 @@ def get_serial_ports() -> tuple[list[str], list[str]]:
     return (available_ports, port_descriptions)
 
 
-def open_serial_port(port: str, *, timeout: None | float = 2.0) -> serial.Serial:
+def open_serial_port(port: str, baudrate: int = BAUDRATE, *, timeout: None | float = 2.0) -> serial.Serial:
     """Open the specified serial port with predefined settings.
 
     Args:
         port (str): Serial port name.
+        baudrate (int): Baud rate for the serial connection. Defaults to BAUDRATE.
+        timeout (None | float): Timeout for read operations. Defaults to 2.0.
 
     Returns:
         serial.Serial: Opened serial port object.
     """
     ser = serial.Serial(
         port=port,
-        baudrate=BAUDRATE,
+        baudrate=baudrate,
         bytesize=serial.EIGHTBITS,
         parity=serial.PARITY_NONE,
         stopbits=serial.STOPBITS_ONE,
         timeout=timeout,
     )
-    logging.debug(f"Port {port} opened successfully.")
+    logging.debug(f"Port {port} opened successfully with baudrate {baudrate}.")
     return ser
 
 
