@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 import tkinter as tk
+import webbrowser
 from tkinter import filedialog, messagebox, ttk
 
 import serial
@@ -71,8 +72,11 @@ class MidiFilePlayer:
         tk.Button(root, text="预置音乐", command=self.preset_music).grid(
             row=6, column=1, padx=10, pady=10, sticky="ew"
         )
+        tk.Button(root, text="关于", command=self.about).grid(
+            row=6, column=2, padx=10, pady=10, sticky="ew"
+        )
         tk.Button(root, text="退出", command=self.root.quit).grid(
-            row=6, column=2, padx=10, pady=10, sticky="ew", columnspan=2
+            row=6, column=3, padx=10, pady=10, sticky="ew"
         )
 
     def create_serial_port_selection(self):
@@ -826,6 +830,83 @@ class MidiFilePlayer:
             logging.warning(
                 "Attempted to send preset command but serial port is not open."
             )
+
+    def about(self):
+        """Show about dialog with author and project information"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("关于")
+        dialog.geometry("480x280")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        # Center the dialog
+        dialog.geometry(
+            "+%d+%d" % (self.root.winfo_rootx() + 100, self.root.winfo_rooty() + 100)
+        )
+
+        # Create main frame with padding
+        main_frame = tk.Frame(dialog)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=30)
+
+        # Application title
+        title_label = tk.Label(
+            main_frame, text="STC-Choir 控制终端", font=("", 16, "bold")
+        )
+        title_label.pack(pady=(0, 20))
+
+        # Description
+        desc_label = tk.Label(
+            main_frame,
+            text="一个基于 STC 单片机的合唱团控制系统\n支持 MIDI 文件解析和多节点音乐播放",
+            justify="center",
+        )
+        desc_label.pack(pady=(0, 20))
+
+        # Author section
+        author_frame = tk.Frame(main_frame)
+        author_frame.pack(pady=(0, 10))
+
+        tk.Label(author_frame, text="作者: ", font=("", 11)).pack(side=tk.LEFT)
+
+        # Clickable author link
+        author_link = tk.Label(
+            author_frame,
+            text="AnicoderAndy",
+            font=("", 11, "underline"),
+            fg="blue",
+            cursor="hand2",
+        )
+        author_link.pack(side=tk.LEFT)
+        author_link.bind(
+            "<Button-1>", lambda e: webbrowser.open("https://github.com/AnicoderAndy")
+        )
+
+        # Project section
+        project_frame = tk.Frame(main_frame)
+        project_frame.pack(pady=(0, 20))
+
+        tk.Label(project_frame, text="项目地址: ", font=("", 11)).pack(side=tk.LEFT)
+
+        # Clickable project link
+        project_link = tk.Label(
+            project_frame,
+            text="https://github.com/AnicoderAndy/stc-choir/",
+            font=("", 11, "underline"),
+            fg="blue",
+            cursor="hand2",
+        )
+        project_link.pack(side=tk.LEFT)
+        project_link.bind(
+            "<Button-1>",
+            lambda e: webbrowser.open("https://github.com/AnicoderAndy/stc-choir/"),
+        )
+
+        # Version info (optional)
+        version_label = tk.Label(
+            main_frame, text="版本: 1.0.0", font=("", 9), fg="gray"
+        )
+        version_label.pack(pady=(10, 0))
 
 
 if __name__ == "__main__":
