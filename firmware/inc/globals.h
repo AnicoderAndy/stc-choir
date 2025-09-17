@@ -14,7 +14,7 @@
 #define int16 int
 #define uint32 unsigned long
 #define int32 long
-#define MAX_NOTES 600
+#define MAX_NOTES 596
 #define BUILTIN_MUSIC_NUM 3
 #define BUILTIN_MUSIC_TRACKS 4
 
